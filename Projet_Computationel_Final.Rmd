@@ -1,0 +1,184 @@
+---
+title: 'Projet Computationnel: Nombres Pseudoaléatoires'
+author: "Charles Bromwich"
+date: "22/04/2022"
+output:
+  pdf_document: default
+  html_document: default
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Introduction**  
+
+L'objectif de ce projet est d'explorer les algorithmes de génération de nombres pseudoaléatoires, ainsi qu'une méthode de transformation pour générer une approximation de la normale centrée réduite. Nous présentons l'implémentation de trois générateurs de nombres pseudoaléatoires: Middle Square, Linear Congruential Generator (LCG) et Additive Congruential Random Number Generator (ACORN).
+
+**Middle Square**  
+
+Un des premiers essais à la création d'un générateur de nombres pseudoaléatoires, cette méthode à rapidement été dépassée par des méthodes plus avancées. En effet, cette méthode comporte de nombreux défauts. Premièrement, elle n'accèpte que des valeurs avec un nombre de charactères pairs, bien que l'on peut ajouter des zéros avant la valeur désirée pour obtenir un nombre de charactères pairs. De plus, l'itération à une trés courte période en comparaison aux algorithmes plus avancés. Après un nombre d'itérations relativement court, les valeurs produites s'enchainent de façon répétée.
+
+```{r run=T}
+library(stringr)
+n_digits <- function(x){floor(log10(x)) + 1}
+middle_square <- function(seed, iter){
+  i <- 0
+  n_digits_true <- nchar(seed)
+  while (i < iter) {
+    seed2 <- as.numeric(seed)^2
+    n_digits <- nchar(seed)
+    n_digits_2 <- n_digits(seed2)
+    if (n_digits(seed2) < 2 * n_digits_true) {
+      seed2 <- str_pad(as.symbol(seed2), width=2*n_digits_true, side="left", pad="0")
+      middle <- n_digits_true
+      lower <- middle + 1 - n_digits_true/2
+      upper <- middle + n_digits_true/2
+      new_seed <- as.numeric(str_sub(seed2, lower, upper))
+    }
+    else {
+      middle <- n_digits_true
+      lower <- middle + 1 - n_digits/2
+      upper <- middle + n_digits/2
+      new_seed <- as.numeric(str_sub(seed2, lower, upper))
+    }
+    print(as.character(new_seed))
+    seed <- new_seed
+    i <- i+1}
+
+}
+```
+
+Pour démontrer la faiblesse relative de cette méthode, nous générons une suite de nombres à partir de la valeur 0540.
+
+```{r run=T}
+middle_square("0540", 5)
+```
+
+Bien que cet exemple soit extrème, ayant une période de 5, il démontre néanmoins que la période de cet algorithme est très court: peu importe la preière valeur, l'algorithme converge rapidement vers une séquence de nombres répétés en chaine. En conséquence, cet algorithme à été dépassé par des méthodes plus avancées.
+
+**Linear Congruential Generator**  
+
+Une autre approche primitive à la génération de nombres pseudoaléatoires, celle ci est néanmoins fortement supérieure à la méthode Middle-Square, et est encore utilisée dans certains logiciels aujourd'hui. Il s'agit d'une approche très efficace, conditionellement sur une bonne sélection des paramètres. Des informations supplémentaires sur cet algorithme sont disponibles dans [@boyar1989].
+
+```{r run=T}
+library(numbers)
+LCG <- function(seed, modulo, multi, incr, iter){
+  i <- 0
+  X <- seed
+  result <- list()
+  while (i < iter) {
+    val <- multi * X + incr
+    X_1 <- mod(val, modulo)
+    i <- i+1
+    X <- X_1
+    result[[i]] <- X/modulo
+  }
+  output <<- t(data.frame(result))
+}
+```
+
+**Additive Congruential Random Number Generator**  
+
+Cet algorithme est particulier en comparaison aux deux autres présentés dans ce projet, puisqu'il est relativement inconnu. Cependant, l'information disponible sur l'algorithme suggère qu'il possède des bonnes qualités statistiques. Pour plus d'informations concernant cet algorithme, veuillez vous référer à [@wikramaratna1989].
+
+```{r run=T}
+ACORN <- function(M, seed, iter){
+  df <- data.frame(matrix(ncol = 9, nrow = iter)) #La matrice d'itération
+  df[1,] <- c(3, 5, 17, 9, 11, 19, 21, 23, 27) #Ces valeurs sont arbitraires
+  for (i in 2:iter) {
+    df[i,1] <- mod((seed + df[i-1,1]), M) #Itérations sur la matrice
+    df[i,2] <- mod((df[i-1,2]+df[i,1]), M)
+    df[i,3] <- mod((df[i-1,3]+df[i,2]), M)
+    df[i,4] <- mod((df[i-1,4]+df[i,3]), M)
+    df[i,5] <- mod((df[i-1,5]+df[i,4]), M)
+    df[i,6] <- mod((df[i-1,6]+df[i,5]), M)
+    df[i,7] <- mod((df[i-1,7]+df[i,6]), M)
+    df[i,8] <- mod((df[i-1,8]+df[i,7]), M)
+    df[i,9] <- mod((df[i-1,9]+df[i,8]), M)
+  }
+  return(df[iter,9]/M) #Valeur produite (la division par M approxime U ~ Unif[0,1])
+}
+```
+
+**Génération de la Normale Centrée Réduite**  
+
+Ayant construit trois générateurs de nombres pseudoaléatoires, nous construsons une fonction nous permettant de tirer une variable normale centrée réduite à partir des deux derniers générateurs (LCG et ACORN). Pour commencer, nous générons quatre séquences à partir des deux fonctions définies ci-dessus. Notez que nous tirons 10000 échantillons de la méthode LCG mais 1000 de la méthode ACORN, en raison d'inefficacité de l'implémentation de l'algorithme ACORN.
+
+```{r run=T}
+#Add script to generate 4 sequences with length = 1000 (2 ACORN, 2 LCG)
+acorn_1 <- data.frame(matrix(ncol=1, nrow=1000))
+acorn_2 <- data.frame(matrix(ncol=1, nrow=1000))
+for (i in 1:1000){acorn_1[i, 1] <- ACORN(2^16, 31, i+15)}
+for (i in 1:1000){acorn_2[i, 1] <- ACORN(2^16, 33, i+15)}
+LCG(12345, 2^32, 1664525, 1013904223, 10000)
+LCG_1 <- as.data.frame(output)
+rm(output)
+LCG(67890, 2^32, 1664525, 1013904223, 10000)
+LCG_2 <- as.data.frame(output)
+rm(output)
+rownames(LCG_1) <- 1:nrow(LCG_1)
+rownames(LCG_2) <- 1:nrow(LCG_2)
+```
+
+En appliquant la transformation Box-Mueller à ces séries, nous obtenons deux variables approximant une normale centrée réduite. Nous commenceons en définissant la transformation Box-Muller:
+
+```{r run=T}
+Box_muller <- function(X, Y) {
+  box_muller <- list()
+  for (i in 1:nrow(X)) {
+    box_muller[[i]] <- sqrt(-2*log(X[i,])) * sin(2*pi*Y[i,])
+  }
+  output <<- t(data.frame(box_muller))
+}
+```
+
+Maintenant que nous avons défini la transformation, nous pouvons l'appliquer à nos séries de nombres pseudoaléatoirement uniformes pour obtenir une approximation du tirage de la normale centrée réduite:
+
+```{r run=T}
+Box_muller(LCG_1, LCG_2)
+Normale_LCG <- output
+rm(output)
+Box_muller(acorn_1, acorn_2)
+Normale_acorn <- output
+rm(output)
+```
+
+**Histogrammes**  
+
+Pour observer nos résultats, nous créons un histograme des deux variables pseudoaléatoirement tirées d'une normale centrée réduite:
+
+```{r run=T}
+hist(Normale_acorn, 
+     main = "Histogramme de la variable générée par ACORN",
+     col = "red", 
+     xlab = "X",
+     ylab = "fréquence",
+     breaks = 40)
+hist(Normale_LCG, 
+     main = "Histogramme de la variable générée par LCG",
+     col = "blue", 
+     xlab = "X",
+     ylab = "fréquence",
+     breaks = 40)
+```
+
+Finalement, pour fins de comparaison, nous créons deux histogrammes de la normale centrée réduite pseudoaléatoire générée par la fonction *Rnorm* pour 1000 et 10000 observations:
+
+```{r run=T}
+hist(rnorm(10000),
+     main = "Histogramme de la fonction Rnorm avec 10000 observations",
+     col = "green",
+     xlab = "X",
+     ylab = "fréquence",
+     breaks = 40)
+hist(rnorm(1000),
+     main = "Histogramme de la fonction Rnorm avec 1000 observations",
+     col = "pink",
+     xlab = "X",
+     ylab = "fréquence",
+     breaks = 40)
+```
+
+**Bibliographie**  
